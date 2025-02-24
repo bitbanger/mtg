@@ -1,47 +1,62 @@
-import json
-import requests
 import argparse
+import re
+import requests
+import json
 
 from lane import *
 
-def print_collection(set_name, col):
-	col = ''.join([c for c in col if c in '.0123456789'])
-	nums = ll_cull(col.split('.'))
-	failed = []
+class Card:
+	def __init__(self, cn, foil=False, token=False, emblem=False):
+		self.cn = int(cn)
+		self.foil = foil
+		self.token = token
+		self.emblem = emblem
 
-	print('"Edition","Collector Number","Name"')
-	for n in nums:
-		url = f'https://api.scryfall.com/cards/{set_name.lower()}/{int(n)}'
-		try:
-			j = json.loads(requests.get(url).text)
-			ed = set_name.upper()
-			name = j['name']
-			cn = int(n)
-			print(f'"{ed}","{cn}","{name}"', flush=True)
-		except Exception as e:
-			if type(e) == KeyboardInterrupt:
-				quit()
-			failed.append(url)
+def scryfall_csv_row(set_name, card):
+	if card.token:
+		set_name = 'T' + set_name
+	if card.emblem:
+		set_name = 'E' + set_name
 
-	for f in failed:
-		print(f)
+	url = f'https://api.scryfall.com/cards/{set_name.lower()}/{card.cn}'
+	j = json.loads(requests.get(url).text)
+	name = j['name']
+	f = 'foil' if card.foil else ''
+	return f'"{set_name.upper()}","{card.cn}","{name}","{f}"'
 
-def read_inp(fn):
-	col_file = ll_read(fn)
-	lines = ll_lines(col_file)
+def parse_cards(fn):
+	txt = ll_read(fn)
+	lines = ll_lines(txt)
 	set_name = lines[0]
-	rest = '.'.join(lines[1:])
-	while '..' in rest:
-		rest = rest.replace('..', '.')
-	
-	return set_name, rest
+	card_strs = lines[1].split('.')
+
+	cards = []
+	for cs in card_strs:
+		cn = ll_only_nums(cs)
+		card = Card(cn)
+		if ll_only_alpha(cs):
+			tags = ll_split(ll_only_alpha(cs, also=' '), delim=' ')
+			if 'foil' in tags:
+				card.foil = True
+			if 'token' in tags:
+				card.token = True
+			if 'emblem' in tags:
+				card.emblem = True
+		cards.append(card)
+
+	return set_name, cards
 
 def main():
 	ap = argparse.ArgumentParser()
-	ap.add_argument('input_file')
+	ap.add_argument('input_files', nargs='+')
 	args = ap.parse_args()
 
-	print_collection(*read_inp(args.input_file))
+	print('"Edition","Collector Number","Name","Foil"', flush=True)
+	for fn in args.input_files:
+		set_name, cards = parse_cards(fn)
+
+		for card in cards:
+			print(scryfall_csv_row(set_name, card), flush=True)
 
 if __name__ == '__main__':
 	main()
