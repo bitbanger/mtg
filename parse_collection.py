@@ -4,6 +4,7 @@ import requests
 import json
 
 from lane import *
+from tqdm import *
 
 class Card:
 	def __init__(self, cn, foil=False, token=False, emblem=False):
@@ -51,12 +52,15 @@ def main():
 	ap.add_argument('input_files', nargs='+')
 	args = ap.parse_args()
 
-	print('"Edition","Collector Number","Name","Foil"', flush=True)
-	for fn in args.input_files:
-		set_name, cards = parse_cards(fn)
+	with open('out/collection.csv', 'w+') as f:
+		headers = '"Edition","Collector Number","Name","Foil"'
+		f.write(headers + '\n')
 
-		for card in cards:
-			print(scryfall_csv_row(set_name, card), flush=True)
+		for fn in tqdm(args.input_files):
+			set_name, cards = parse_cards(fn)
+			for card in tqdm(cards, leave=False):
+				row = scryfall_csv_row(set_name, card)
+				f.write(row + '\n')
 
 if __name__ == '__main__':
 	main()
