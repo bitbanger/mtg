@@ -1,29 +1,37 @@
 import argparse
+import json
 import re
 import requests
-import json
+import traceback
 
 from lane import *
 from tqdm import *
 
 class Card:
-	def __init__(self, cn, foil=False, token=False, emblem=False):
+	def __init__(self, set_name, cn, foil=False, token=False):
 		self.cn = int(cn)
+		self.set = set_name
 		self.foil = foil
 		self.token = token
-		self.emblem = emblem
+	
+	def __str__(self):
+		return f'{self.set} {self.cn} {self.foil} {self.token}'
 
 def scryfall_csv_row(set_name, card):
 	if card.token:
 		set_name = 'T' + set_name
-	if card.emblem:
-		set_name = 'E' + set_name
 
 	url = f'https://api.scryfall.com/cards/{set_name.lower()}/{card.cn}'
 	j = json.loads(requests.get(url).text)
-	name = j['name']
+	try:
+		name = j['name']
+	except:
+		print(url, flush=True)
+		print(f'{card} {j}', flush=True)
 	f = 'foil' if card.foil else ''
-	return f'"{set_name.upper()}","{card.cn}","{name}","{f}"'
+
+	res = f'"{set_name.upper()}","{card.cn}","{name}","{f}"'
+	return res
 
 def parse_cards(fn):
 	txt = ll_read(fn)
@@ -34,7 +42,7 @@ def parse_cards(fn):
 	cards = []
 	for cs in card_strs:
 		cn = ll_only_nums(cs)
-		card = Card(cn)
+		card = Card(set_name, cn)
 		if ll_only_alpha(cs):
 			tags = ll_split(ll_only_alpha(cs, also=' '), delim=' ')
 			if 'foil' in tags:
@@ -42,7 +50,7 @@ def parse_cards(fn):
 			if 'token' in tags:
 				card.token = True
 			if 'emblem' in tags:
-				card.emblem = True
+				card.token = True
 		cards.append(card)
 
 	return set_name, cards
@@ -50,17 +58,34 @@ def parse_cards(fn):
 def main():
 	ap = argparse.ArgumentParser()
 	ap.add_argument('input_files', nargs='+')
+	ap.add_argument('-a', '--append', action='store_true')
 	args = ap.parse_args()
 
-	with open('out/collection.csv', 'w+') as f:
-		headers = '"Edition","Collector Number","Name","Foil"'
-		f.write(headers + '\n')
+	counts = {}
+	rows = {}
 
+	with open('out/collection.csv', 'a+' if args.append else 'w+') as f:
 		for fn in tqdm(args.input_files):
 			set_name, cards = parse_cards(fn)
 			for card in tqdm(cards, leave=False):
-				row = scryfall_csv_row(set_name, card)
-				f.write(row + '\n')
+				if str(card) in counts:
+					counts[str(card)] += 1
+					continue
+
+				try:
+					row = scryfall_csv_row(set_name, card)
+					rows[str(card)] = row
+					counts[str(card)] = 1
+				except:
+					f.write(f'lookup failed on {set_name} {card.cn}' + '\n')
+					print(f'lookup failed on {set_name} {card.cn}', flush=True)
+					print(traceback.format_exc(), flush=True)
+
+		f.write('"Count","Edition","Collector Number","Name","Foil"\n')
+		for card, count in sorted(counts.items(), key=nth(1), reverse=True):
+			row = rows[card]
+			row = '"{count}",' + row
+			f.write(row + '\n')
 
 if __name__ == '__main__':
 	main()
