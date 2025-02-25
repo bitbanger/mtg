@@ -84,8 +84,12 @@ def main():
 		f.write('"Count","Edition","Collector Number","Name","Foil"\n')
 		for card, count in sorted(counts.items(), key=nth(1), reverse=True):
 			row = rows[card]
-			row = '"{count}",' + row
+			row = f'"{count}",' + row
 			f.write(row + '\n')
+
+		# Write the manual cards in, too
+		for line in ll_lines(ll_read('out/_manual.csv', 'r'))[1:]:
+			f.write(line + '\n')
 
 if __name__ == '__main__':
 	main()
