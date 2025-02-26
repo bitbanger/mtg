@@ -1,10 +1,12 @@
 import argparse
+import csv
 import json
 import os
 import re
 import requests
 import traceback
 
+from io import StringIO
 from lane import *
 from tqdm import *
 
@@ -70,62 +72,67 @@ def parse_cards(fn):
 
 	return set_name, cards
 
+def fetch_card_data(input_files):
+	rows = {}
+	counts = {}
+	pbar_1 = tqdm(input_files, bar_format='{desc}{bar}')
+	for i, fn in enumerate(pbar_1):
+		set_name = fn.split(".")[0].split("/")[-1].upper()
+		pbar_1.set_description(f'Set {i+1} of {len(input_files)} ({set_name})')
+		if not fn.endswith('.txt'):
+			continue
+		set_name, cards = parse_cards(fn)
+		pbar_2 = tqdm(cards, bar_format='{desc}{bar}', leave=False)
+		for j, card in enumerate(pbar_2):
+			pbar_2.set_description(f'Card {j+1} of {len(cards)}')
+			if str(card) in counts:
+				counts[str(card)] += 1
+				continue
+
+			try:
+				row = scryfall_csv_row(set_name, card)
+				rows[str(card)] = row
+				counts[str(card)] = 1
+			except:
+				f.write(f'lookup failed on {set_name} {card.cn}' + '\n')
+				print(f'lookup failed on {set_name} {card.cn}', flush=True)
+				print(traceback.format_exc(), flush=True)
+
+	return rows, counts
+
+def write_row(file, row, count, card_kingdom=False):
+	if not card_kingdom:
+		file.write(row + '\n')
+	else:
+		c, ed, cn, n, f = next(csv.reader(StringIO(row)))
+		n = n.split(' // ')[0]
+		if n in ['Island', 'Mountain', 'Forest', 'Plains', 'Swamp']:
+			n = '%s (%04d)' % (n, int(cn))
+		file.write(f'"{count}","{ed}","{n}","{f}"\n')
+
+def write_file(out_fn, rows, counts, append=False, card_kingdom=False):
+	with open(out_fn, 'a+' if append else 'w+') as f:
+		if not card_kingdom:
+			f.write('"Count","Edition","Collector Number","Name","Foil"\n')
+
+		for card, count in sorted(counts.items(), key=nth(1), reverse=True):
+			row = f'"{count}",' + rows[card]
+			write_row(f, row, count, card_kingdom=card_kingdom)
+
+		# Write the manual cards in, too
+		for line in ll_lines(ll_read('in/_manual.csv', 'r'))[1:]:
+			count = ll_csv_row(line)[0]
+			write_row(f, line, count, card_kingdom=card_kingdom)
+
 def main():
 	ap = argparse.ArgumentParser()
 	ap.add_argument('input_files', nargs='+')
 	ap.add_argument('-a', '--append', action='store_true')
-	ap.add_argument('-c', '--card-kingdom', action='store_true')
 	args = ap.parse_args()
 
-	counts = {}
-	rows = {}
-
-	out_fn = 'out/collection.csv' if not args.card_kingdom else 'out/ck_collection.csv'
-	with open(out_fn, 'a+' if args.append else 'w+') as f:
-		pbar_1 = tqdm(args.input_files, bar_format='{desc}{bar}')
-		for i, fn in enumerate(pbar_1):
-			set_name = fn.split(".")[0].split("/")[-1].upper()
-			pbar_1.set_description(f'Set {i+1} of {len(args.input_files)} ({set_name})')
-			if not fn.endswith('.txt'):
-				continue
-			set_name, cards = parse_cards(fn)
-			pbar_2 = tqdm(cards, bar_format='{desc}{bar}', leave=False)
-			for j, card in enumerate(pbar_2):
-				pbar_2.set_description(f'Card {j+1} of {len(cards)}')
-				if str(card) in counts:
-					counts[str(card)] += 1
-					continue
-
-				try:
-					row = scryfall_csv_row(set_name, card)
-					rows[str(card)] = row
-					counts[str(card)] = 1
-				except:
-					f.write(f'lookup failed on {set_name} {card.cn}' + '\n')
-					print(f'lookup failed on {set_name} {card.cn}', flush=True)
-					print(traceback.format_exc(), flush=True)
-
-		if not args.card_kingdom:
-			f.write('"Count","Edition","Collector Number","Name","Foil"\n')
-		for card, count in sorted(counts.items(), key=nth(1), reverse=True):
-			row = rows[card]
-			row = f'"{count}",' + row
-			if not args.card_kingdom:
-				f.write(row + '\n')
-			else:
-				import csv
-				from io import StringIO
-				sio = StringIO(row)
-				r = csv.reader(sio)
-				count, ed, cn, n, foil = next(r)
-				n = n.split(' // ')[0]
-				if n in ['Island', 'Mountain', 'Forest', 'Plains', 'Swamp']:
-					n = '%s (%04d)' % (n, int(cn))
-				f.write(f'"{count}","{ed}","{n}","{foil}"\n')
-
-		# Write the manual cards in, too
-		for line in ll_lines(ll_read('in/_manual.csv', 'r'))[1:]:
-			f.write(line + '\n')
+	rows, counts = fetch_card_data(args.input_files)
+	write_file('out/collection.csv', rows, counts, append=args.append)
+	write_file('out/ck_collection.csv', rows, counts, append=args.append, card_kingdom=True)
 
 if __name__ == '__main__':
 	main()
