@@ -88,7 +88,7 @@ def main():
 			f.write(row + '\n')
 
 		# Write the manual cards in, too
-		for line in ll_lines(ll_read('out/_manual.csv', 'r'))[1:]:
+		for line in ll_lines(ll_read('in/_manual.csv', 'r'))[1:]:
 			f.write(line + '\n')
 
 if __name__ == '__main__':
