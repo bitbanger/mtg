@@ -1,0 +1,14 @@
+LTR
+429.19 foil.377.281 foil.441 foil.320.16 foil.47 foil.148 foil.182 foil.129 foil.210 foil.16 foil.3 token foil.320
+LTC
+369.159.89 foil
+LCI
+2 token foil.290 foil.312 foil.368.333.321 foil.181 foil.95 foil.202 foil.167 foil.106 foil.120 foil.16 foil.254 foil
+LCC
+37
+REX
+26
+SNC
+112 foil.381 foil.316.415.350.320.278 foil.2 token foil.256 foil.85 foil.102 foil.57 foil.90 foil.51 foil
+NCC
+161

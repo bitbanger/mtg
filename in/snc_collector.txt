@@ -1,0 +1,4 @@
+SNC
+434 foil.101 foil.323 foil.279 foil.64 foil.77 foil.66 foil.258 foil.174 foil.111 foil.325.332.333.438.11 foil token
+NCC
+139

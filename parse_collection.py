@@ -18,9 +18,20 @@ class Card:
 		self.set = set_name
 		self.foil = foil
 		self.token = token
+		self.rarity = ''
+		self.name = ''
 	
 	def __str__(self):
 		return f'{self.set} {self.cn} {self.foil} {self.token}'
+	
+	def fstr(self):
+		f = str(self.cn)
+		if self.token:
+			f += ' token'
+		if self.foil:
+			f += ' foil'
+
+		return f
 
 def scryfall_csv_row(set_name, card):
 	if card.token:
@@ -40,6 +51,8 @@ def scryfall_csv_row(set_name, card):
 
 	try:
 		name = j['name']
+		card.rarity = j['rarity']
+		card.name = name
 	except:
 		print(set_name)
 		print(card.cn)
@@ -63,7 +76,7 @@ def file2sets(fn):
 			continue
 
 		# This can't be a set name
-		if len(line) > 3:
+		if len(line) > 3 and line != 'PLST':
 			set_lines.append(line)
 			continue
 
@@ -154,13 +167,11 @@ def sets2rows(sets, delay=False):
 			rows[str(card)] = row
 			counts[str(card)] = 1
 		except:
-			f.write(f'lookup failed on {set_name} {card.cn}' + '\n')
 			print(f'lookup failed on {set_name} {card.cn}', flush=True)
 			print(traceback.format_exc(), flush=True)
 
 		if i == len(set_cards)-1:
 			pbar.set_description_str(f'Card {len(set_cards)} of {len(set_cards)} ')
-	
 
 	return rows, counts
 
@@ -195,10 +206,16 @@ def main():
 	ap.add_argument('-a', '--append', action='store_true')
 	ap.add_argument('-d', '--delay', action='store_true')
 	ap.add_argument('-e', '--exclude-manuals', action='store_true')
+	ap.add_argument('-o', '--output-set', default='')
 	args = ap.parse_args()
 
 	sets = files2sets(args.input_files)
 	rows, counts = sets2rows(sets, delay=args.delay)
+
+	if args.output_set:
+		for card in sorted(sets[args.output_set], key=lambda c: c.fstr()):
+			print(card.fstr())
+		quit()
 
 	write_file('out/collection.csv', rows, counts, append=args.append, exclude_manuals=args.exclude_manuals)
 	write_file('out/ck_collection.csv', rows, counts, append=args.append, card_kingdom=True, exclude_manuals=True)
