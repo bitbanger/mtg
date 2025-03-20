@@ -24,6 +24,50 @@ class Card:
 	def __str__(self):
 		return f'{self.set} {self.cn} {self.foil} {self.token}'
 	
+	def get_name(self):
+		if not os.path.exists('cache'):
+			os.mkdir('cache')
+
+		fixed_sc = self.set.lower()
+		if self.token:
+			fixed_sc = 't'+fixed_sc
+		url = f'https://api.scryfall.com/cards/{fixed_sc}/{self.cn}'
+
+		cache_fn = f'{ll_md5(url)}.json'
+		if False and (cache_fn := f'{ll_md5(url)}.json') in os.listdir('cache'):
+			j = json.loads(ll_read(f'cache/{cache_fn}'))
+		else:
+			j = json.loads(jt := requests.get(url).text)
+			ll_write(f'cache/{cache_fn}', jt)
+
+		return j['name']
+	
+	def price(self):
+		if not os.path.exists('cache'):
+			os.mkdir('cache')
+
+		fixed_sc = self.set.lower()
+		if self.token:
+			fixed_sc = 't'+fixed_sc
+		url = f'https://api.scryfall.com/cards/{fixed_sc}/{self.cn}'
+
+		cache_fn = f'{ll_md5(url)}.json'
+		if False and (cache_fn := f'{ll_md5(url)}.json') in os.listdir('cache'):
+			j = json.loads(ll_read(f'cache/{cache_fn}'))
+		else:
+			j = json.loads(jt := requests.get(url).text)
+			ll_write(f'cache/{cache_fn}', jt)
+
+		price = 0.0
+		if self.foil and j['prices'].get('usd_etched') is not None:
+			price = j['prices']['usd_etched']
+		elif self.foil and j['prices'].get('usd_foil') is not None:
+			price = j['prices']['usd_foil']
+		elif j['prices'].get('usd') is not None:
+			price = j['prices']['usd']
+
+		return float(price)
+
 	def fstr(self):
 		f = str(self.cn)
 		if self.token:
@@ -202,14 +246,41 @@ def write_file(out_fn, rows, counts, append=False, card_kingdom=False, exclude_m
 
 def main():
 	ap = argparse.ArgumentParser()
-	ap.add_argument('input_files', nargs='+')
 	ap.add_argument('-a', '--append', action='store_true')
 	ap.add_argument('-d', '--delay', action='store_true')
 	ap.add_argument('-e', '--exclude-manuals', action='store_true')
 	ap.add_argument('-o', '--output-set', default='')
+	ap.add_argument('-p', '--price', action='store_true')
+	ap.add_argument('-m', '--miniprice', action='store_true')
+	args, mp_unk = ap.parse_known_args()
+
+	if args.miniprice:
+		
+
+		sc = mp_unk[0]
+		cn = mp_unk[1]
+		token = 'token' in mp_unk
+		foil = 'foil' in mp_unk
+		c = Card(sc, cn, foil=foil, token=token)
+		print('%s\t$%.2f' % (c.name(), c.price()))
+		quit()
+
+	ap.add_argument('input_files', nargs='+')
 	args = ap.parse_args()
 
 	sets = files2sets(args.input_files)
+	if args.price:
+		for sc in sets:
+			pcards = sorted(sets[sc], key=lambda x: x.price(), reverse=True)
+			total_price = sum(c.price() for c in pcards)
+			print('%s: $%.2f' % (sc, total_price))
+			for card in pcards:
+				print('\t$%.2f\t\t%s' % (card.price(), card.get_name()))
+
+		quit()
+			
+
+
 	rows, counts = sets2rows(sets, delay=args.delay)
 
 	if args.output_set:
